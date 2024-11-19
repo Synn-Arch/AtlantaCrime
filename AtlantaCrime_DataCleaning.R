@@ -14,12 +14,30 @@ census_api_key('7deb96b03ae11f23a2fb544839ee195ccd646ac3')
 
 # 1. Socio-economic Data
 ## Get Census data for block groups
+## Male under 5 : B01001_003E
+## Male 5 - 9 : B01001_004E
+## Male 10 - 14 : B01001_005E
+## Male 15 - 17 : B01001_006E
+## Female under 5 : B01001_027E
+## Female 5 - 9 : B01001_028E
+## Female 10 - 14 : B01001_029E
+## Female 15 - 17 : B01001_030E
+
+
 blockgroup <- get_acs(
   geography = "block_group", 
   variables = c(
     'tot_popE' = 'B01001_001E', 
     'male_popE' = 'B01001_002E', 
-    'female_popE' = 'B01001_026E', 
+    'female_popE' = 'B01001_026E',
+    'Male5E' = 'B01001_003E',
+    'Male59E' = 'B01001_004E',
+    'Male1014E' = 'B01001_005E',
+    'Male1517E' = 'B01001_006E',
+    'Female5E' = 'B01001_027E',
+    'Female59E' = 'B01001_028E',
+    'Female1014E' = 'B01001_029E',
+    'Female1517E' = 'B01001_030E',
     'race_totalE' = 'B02001_001E', 
     'whiteE' = 'B02001_002E', 
     'blackE' = 'B02001_003E', 
@@ -41,6 +59,7 @@ blockgroup <- blockgroup %>%
   select(GEOID, NAME, geometry, ends_with("E")) %>%
   mutate(
     pop_den = tot_popE / st_area(.),
+    adult_popE = tot_popE - (Male5E + Male59E + Male1014E + Male1517E + Female5E + Female59E + Female1014E + Female1517E),
     white_ratio = whiteE / race_totalE,
     black_ratio = blackE / race_totalE,
     other_ratio = (nativeE + asianE + pacific_islanderE + otherE) / race_totalE,
@@ -198,14 +217,21 @@ data_final <- blockgroup_joined %>%
 
 ## Keep Columns we will use for regression (it can be changed later)
 ## Keep GEOID and Name to match for index
-columns_to_keep <- c("GEOID", "NAME", "tot_popE", "pop_den", "white_ratio", "black_ratio", "other_ratio", "median_incomeE", "less_than_hs_ratio", 
-                     "Commercial", "HighdensityResidential", "Industrial", "Institutional", "LowdensityResidential", "ResidentialCommercial", "min_station_dist",
+columns_to_keep <- c("GEOID", "NAME", "tot_popE", "adult_popE", "pop_den", "white_ratio", "black_ratio", "other_ratio", "median_incomeE", "less_than_hs_ratio", 
+                     "Commercial", "HighdensityResidential", "Industrial", "Institutional", "LowdensityResidential", "ResidentialCommercial", "Percentage.sum", "min_station_dist",
                      "geometry", "violent_count", "nonviolent_count")
 data_final <- data_final[, columns_to_keep]
 
 ## Remove Null Rows
 data_final <- data_final %>%
   drop_na()
+
+## Calculate Crime Rate per adult_pop
+data_final2 <- data_final %>%
+  mutate(
+    vio_crimerate = violent_count / adult_popE,
+    nonvio_crimerate = nonviolent_count / adult_popE
+  )
 
 ## Export final dataset to GeoJSON
 st_write(data_final, "data_final.geojson", driver = "GeoJSON")
